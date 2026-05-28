@@ -1,7 +1,8 @@
 // aipooljs — fixed-size object pool for hot-path acquire/release patterns.
 //
-// v0.0.1 scaffold: types and JSDoc are stable; implementation is intentionally
-// stubbed (`throw`) until 0.1.0 wires up the runtime.
+// v0.1.0: full implementation of the frozen API surface. Stack-backed
+// available set, Set-tracked alive objects, double-release detection,
+// idempotent dispose, destructurable methods (no `this`).
 
 /**
  * Configuration for {@link createPool}.
@@ -101,6 +102,21 @@ export class PoolDisposedError extends Error {
   override readonly name = "PoolDisposedError";
 }
 
+// ---------------------------------------------------------------------------
+// Internal state
+// ---------------------------------------------------------------------------
+
+interface State<T> {
+  available: T[];
+  aliveSet: Set<T>;
+  reset: (obj: T) => void;
+  disposed: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Factory
+// ---------------------------------------------------------------------------
+
 /**
  * Construct a fixed-size object pool.
  *
@@ -136,7 +152,75 @@ export class PoolDisposedError extends Error {
  * @public
  */
 export function createPool<T>(opts: PoolOptions<T>): Pool<T> {
-  // v0.0.1 scaffold — implementation lands with 0.1.0.
-  void opts;
-  throw new Error("aipooljs: not implemented (v0.0.1 scaffold)");
+  const { size, create, reset } = opts;
+
+  if (!Number.isInteger(size) || size < 0) {
+    throw new PoolError("size must be a non-negative integer");
+  }
+
+  const available: T[] = [];
+  for (let i = 0; i < size; i++) {
+    available.push(create());
+  }
+
+  const state: State<T> = {
+    available,
+    aliveSet: new Set<T>(),
+    reset,
+    disposed: false,
+  };
+
+  function ck(): void {
+    if (state.disposed) throw new PoolDisposedError("aipooljs: pool has been disposed");
+  }
+
+  function acquire(): T {
+    ck();
+    if (state.available.length === 0) throw new PoolError("pool exhausted");
+    const obj = state.available.pop();
+    if (obj === undefined) throw new PoolError("pool exhausted");
+    state.aliveSet.add(obj);
+    return obj;
+  }
+
+  function release(obj: T): void {
+    ck();
+    if (!state.aliveSet.has(obj)) throw new PoolError("foreign or double-released object");
+    state.aliveSet.delete(obj);
+    state.reset(obj);
+    state.available.push(obj);
+  }
+
+  function drain(): void {
+    ck();
+    const snapshot = Array.from(state.aliveSet);
+    for (const obj of snapshot) {
+      state.aliveSet.delete(obj);
+      state.reset(obj);
+      state.available.push(obj);
+    }
+  }
+
+  function dispose(): void {
+    if (state.disposed) return;
+    state.disposed = true;
+    state.available.length = 0;
+    state.aliveSet.clear();
+  }
+
+  return {
+    acquire,
+    release,
+    drain,
+    dispose,
+    get alive() {
+      return state.aliveSet.size;
+    },
+    get available() {
+      return state.available.length;
+    },
+    get disposed() {
+      return state.disposed;
+    },
+  };
 }

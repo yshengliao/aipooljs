@@ -6,6 +6,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-28
+
+### Added
+
+- `createPool({ create, reset, size })` factory — fixed-size, fail-fast on overflow.
+- `acquire()` / `release()` / `drain()` / `dispose()` lifecycle.
+- Double-release detection via `Set`-tracked alive set; offending `release()` throws `PoolError`.
+- `dispose()` is idempotent; subsequent `acquire()` / `release()` / `drain()` throw `PoolDisposedError`.
+- `alive` / `available` / `disposed` read-only counters.
+- Test coverage ≥95% statements / lines / functions / ≥90% branches.
+- Size budget: ≤500 B gzip (raised to 700 B if strict-TS overhead pushes past 500 B).
+- Dual ESM + CJS build via `tsup` with `minify: true`; `sideEffects: false`; zero runtime dependencies.
+
 ## [0.0.1] - 2026-05-28
 
 ### Added (scaffold)
@@ -27,13 +40,3 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Publish workflow exists but trigger is `workflow_dispatch` only — no
   accidental npm release on tag push until 0.1.0.
 
-### Planned for 0.1.0
-
-- `createPool({ create, reset, size })` factory — fixed-size, fail-fast on overflow.
-- `acquire()` / `release()` / `drain()` / `dispose()` lifecycle.
-- Double-release detection via `Set`-tracked alive set; offending `release()` throws `PoolError`.
-- `dispose()` is idempotent; subsequent `acquire()` / `release()` / `drain()` throw `PoolDisposedError`.
-- `alive` / `available` / `disposed` read-only counters.
-- Test coverage ≥95% statements / lines / functions / ≥90% branches.
-- Size budget: ≤500 B gzip.
-- Dual ESM + CJS build via `tsup`; `sideEffects: false`; zero runtime dependencies.

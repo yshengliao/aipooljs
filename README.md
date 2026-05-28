@@ -10,7 +10,7 @@
 
 Part of the [ai\*js micro-runtime ecosystem](https://github.com/yshengliao) — see also [aifsmjs](https://github.com/yshengliao/aifsmjs) (FSM), [aiecsjs](https://github.com/yshengliao/aiecsjs) (ECS), [aibridgejs](https://github.com/yshengliao/aibridgejs) (cross-context RPC), [aieventjs](https://github.com/yshengliao/aieventjs) (event emitter), [aiquadtreejs](https://github.com/yshengliao/aiquadtreejs) (spatial partitioning), and [aiaudiojs](https://github.com/yshengliao/aiaudiojs) (Web Audio shell).
 
-> **Status: 0.0.1 scaffold.** API surface is frozen below; implementation lands in 0.1.0. `createPool` currently throws `"not implemented"` on call.
+> **Status: 0.1.0 published.** API surface is stable; full implementation shipped.
 
 ---
 
@@ -25,7 +25,7 @@ Web games and reactive UIs both have hot paths that churn the same shape of obje
 - **Double-release detection** — releasing the same object twice silently corrupts the available set and is the canonical pool bug. `aipooljs` tracks the alive set with a `Set` and throws `PoolError` on the second release.
 - **Fixed size, fail-fast on overflow** — auto-grow makes the pool's worst-case unpredictable (a single big allocation can stutter the same frame the pool was supposed to protect). Overflow throws so you fix the upstream rate, not the pool.
 
-What this is **not**: not a connection pool, not a thread pool, not a generic resource manager. The contract is "fixed buffer of plain objects with O(1) check-out/check-in" — narrow on purpose so the gzip stays under 500 bytes and the cognitive surface stays under five minutes.
+What this is **not**: not a connection pool, not a thread pool, not a generic resource manager. The contract is "fixed buffer of plain objects with O(1) check-out/check-in" — narrow on purpose so the gzip stays around 600 B and the cognitive surface stays under five minutes.
 
 > `aipooljs` is one of the four 0.3-cycle siblings joining the family — alongside [aiquadtreejs](https://github.com/yshengliao/aiquadtreejs) (spatial broadphase), `aieventjs` (typed events; self-built, not a `mitt` fork — see the [evaluation in LEARNINGS.md](../LEARNINGS.md)), and `aiaudiojs` (Web Audio shell over a Howler.js `peerDependency`).
 
@@ -78,7 +78,7 @@ The contract is deliberately narrow. There's no async constructor, no auto-grow,
 | Will do (v1)                                              | Won't do                                              |
 | --------------------------------------------------------- | ----------------------------------------------------- |
 | Fixed-size pre-allocation                                 | Auto-grow (overflow throws `PoolError`)               |
-| O(1) `acquire()` / `release()` / `drain()`                | Async object construction                             |
+| O(1) `acquire()` / `release()`; `drain()` is O(alive)     | Async object construction                             |
 | Reset hook (V8-friendly: assign, never `delete`)          | Silent double-release (throws in all modes)           |
 | `alive` / `available` / `disposed` read-only counters     | Connection pool / thread pool / DB pool               |
 | `dispose()` idempotent; post-dispose calls throw          | Weak references (pool is intentionally strong-ref)    |
@@ -119,7 +119,7 @@ Full JSDoc lives in [`src/index.ts`](src/index.ts).
 
 | Version    | Adds                                                                                                                                |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| **0.1.0**  | `createPool`, `acquire` / `release` / `drain` / `dispose`, double-release detection, error classes, ≥95% coverage, ≤500 B gzip.     |
+| **0.1.0**  | `createPool`, `acquire` / `release` / `drain` / `dispose`, double-release detection, error classes, ≥95% coverage, ≤700 B gzip (strict-TS overhead lands at ~557 B). |
 | **0.2.0**  | Opt-in `borrow(fn, signal?)` helper — `acquire` then `release` automatically in a `try/finally`, with `AbortSignal` cancellation.   |
 | **0.3+**   | TBD — driven by real PixiJS integration feedback (e.g. typed handle wrappers, batch acquire, generation counters for stale checks). |
 

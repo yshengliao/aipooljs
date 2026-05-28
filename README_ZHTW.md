@@ -25,7 +25,7 @@
 - **重複 release 偵測** ── 對同一物件 release 兩次會悄悄把 available set 弄壞，是 pool 領域的招牌 bug。`aipooljs` 用 `Set` 追蹤 alive set，第二次 release 拋 `PoolError`。
 - **Fixed size、溢位即拋** ── auto-grow 讓 worst case 不可預期（一次大配置可能在同一個你想保護的 frame 內 stutter）。溢位即拋的好處是逼你修上游速率，而不是修 pool。
 
-明確**不做**的：不做連線池、不做 thread pool、不做泛用資源管理器。契約就是「固定 buffer + O(1) check-out/check-in 的 plain object」── 故意收窄到 gzip < 500 bytes、認知負擔 < 五分鐘。
+明確**不做**的：不做連線池、不做 thread pool、不做泛用資源管理器。契約就是「固定 buffer + O(1) check-out/check-in 的 plain object」── 故意收窄到 gzip 落在 600 B 上下、認知負擔 < 五分鐘。
 
 > `aipooljs` 是 v0.3 cycle 四個新加入兄弟套件之一 ── 另外三個是 [aiquadtreejs](https://github.com/yshengliao/aiquadtreejs)（空間 broadphase）、`aieventjs`（typed event；**自寫不 fork mitt**，理由見 [LEARNINGS.md 的評估](../LEARNINGS.md)）、`aiaudiojs`（Web Audio 薄殼，底層用 Howler.js 作 `peerDependency`）。
 
@@ -78,7 +78,7 @@ function reclaim(s: PIXI.Sprite) {
 | 會做（v1）                                                  | 不會做                                                |
 | ---------------------------------------------------------- | ----------------------------------------------------- |
 | 固定大小預配置                                              | Auto-grow（溢位直接拋 `PoolError`）                   |
-| O(1) `acquire()` / `release()` / `drain()`                 | Async object construction                             |
+| O(1) `acquire()` / `release()`；`drain()` 為 O(alive)      | Async object construction                             |
 | Reset hook（V8 友善：賦值、絕不 `delete`）                  | 靜默重複 release（任何模式下都拋）                    |
 | `alive` / `available` / `disposed` 唯讀 counter            | 連線池 / Thread pool / DB pool                        |
 | `dispose()` 冪等；dispose 後呼叫拋錯                       | Weak reference（pool 本來就要強引用）                 |
@@ -119,7 +119,7 @@ function createPool<T>(opts: PoolOptions<T>): Pool<T>;
 
 | 版本       | 加入內容                                                                                                                                |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **0.1.0**  | `createPool`、`acquire` / `release` / `drain` / `dispose`、重複 release 偵測、error classes、≥95% coverage、≤500 B gzip。                |
+| **0.1.0**  | `createPool`、`acquire` / `release` / `drain` / `dispose`、重複 release 偵測、error classes、≥95% coverage、≤700 B gzip（strict-TS 額外負擔實測落在 ~557 B）。 |
 | **0.2.0**  | opt-in `borrow(fn, signal?)` helper ── `try/finally` 內自動 acquire/release，配 `AbortSignal` 取消。                                     |
 | **0.3+**   | TBD ── 由真實 PixiJS 整合回饋驅動（typed handle wrapper、batch acquire、generation counter 等）。                                        |
 
