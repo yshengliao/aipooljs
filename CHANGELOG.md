@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-29
+
+### Fixed
+
+- **F1 — borrow synchronous-abort during fn:** if `fn` calls `signal.abort()` synchronously
+  before its first `await`, the `abort` event fires before the `addEventListener("abort", …)`
+  listener is attached, causing the rejection to be silently dropped. A post-attach
+  `if (signal.aborted) onAbort()` guard now catches this case, ensuring the borrow rejects
+  with `AbortError` and the slot is released immediately (not deferred until `fn` settles).
+- **F2 — 'grow' is now atomic on `create()` failure:** the grow loop previously pushed
+  each newly created object straight into `avail`, so a mid-grow `create()` throw left
+  partial slots committed (breaking the `alive + available === size` invariant). The loop
+  now builds into a temporary `grown: T[]` array and only commits to `avail` and
+  `capacity` once all allocations succeed.
+
+### Changed
+
+- Size budget `dist/index.js`: 850 B → 900 B (accommodates F1/F2 correctness fixes;
+  error-message strings retained — no golfing).
+
+### Docs
+
+- `STABILITY.md`: added `OverflowHandler<T>` and `NullPool<T>` to the Stable section
+  (both were already exported and documented in 0.3.0; the omission was an oversight).
+- `CONTRIBUTING.md`: updated stale "≤ 500 B gzip" / "past 500 B" guidance to "≤ 900 B".
+
 ## [0.3.0] - 2026-05-29
 
 ### Added

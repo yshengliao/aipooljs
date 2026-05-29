@@ -3,6 +3,7 @@
 ## Stable (since 0.3.0)
 
 - `createPool` / `PoolOptions` / `Pool` / `PoolError` / `PoolDisposedError`
+- `OverflowHandler<T>` / `NullPool<T>`
 - `acquire` / `release` / `drain` / `dispose` / `alive` / `available` / `disposed`
 - `onOverflow`: `'throw'` | `'null'` | `'grow'` | `(pool) => T`
 - `borrow(fn, opts?)` — see 6 invariants below

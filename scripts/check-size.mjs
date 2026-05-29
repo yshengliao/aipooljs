@@ -16,9 +16,9 @@ const budgets = {
   //   • borrow() sync path (try/catch + instanceof): ~45–60 B.
   //   • borrow() async + abort (listener + latch + pre-abort + reject): ~70–95 B.
   //   NullPool / Omit / overloads are types-only — 0 runtime bytes.
-  // Budget raised from 700 B to 850 B to accommodate onOverflow + borrow async/abort
-  // while retaining descriptive error messages (no message-string golfing).
-  "dist/index.js": 850,
+  // v0.3.1: budget raised from 850 B to 900 B to accommodate F1/F2 correctness
+  // fixes (immediate-abort guard + atomic grow temp array); messages retained.
+  "dist/index.js": 900,
 };
 
 const failures = [];

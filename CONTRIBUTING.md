@@ -1,7 +1,7 @@
 # Contributing to aipooljs
 
 Thanks for taking the time to look. aipooljs is a deliberately small library
-(target ≤ 500 B gzip); contributions that keep the surface narrow are easier
+(target ≤ 900 B gzip); contributions that keep the surface narrow are easier
 to accept than ones that expand it.
 
 ## Quick start
@@ -37,7 +37,7 @@ check, and size budget check — in that order.
 - Auto-grow / shrink semantics (explicit non-goal in 0.x)
 - Async object construction (explicit non-goal in 0.x)
 - Generation counters or stale-handle detection (0.3+ candidate)
-- Anything that pushes the core gzip past 500 B
+- Anything that pushes the core gzip past 900 B
 
 ## Design principles
 
