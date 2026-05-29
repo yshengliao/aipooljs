@@ -1,0 +1,167 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { PoolDisposedError, PoolError, createPool } from "../src/index.js";
+import type { Pool } from "../src/index.js";
+
+// ---------------------------------------------------------------------------
+// Shared fixture helpers
+// ---------------------------------------------------------------------------
+
+interface Obj {
+  value: number;
+}
+
+function makeOpts(size: number) {
+  const create = vi.fn((): Obj => ({ value: 0 }));
+  const reset = vi.fn((o: Obj) => {
+    o.value = 0;
+  });
+  return { size, create, reset };
+}
+
+// ---------------------------------------------------------------------------
+// O. onOverflow behaviour
+// ---------------------------------------------------------------------------
+
+describe("O. onOverflow", () => {
+  it("O1. default (omit) === 'throw': full pool → acquire throws PoolError", () => {
+    const pool = createPool(makeOpts(1));
+    pool.acquire();
+    expect(() => pool.acquire()).toThrow(PoolError);
+  });
+
+  it("O2. explicit 'throw' same as default", () => {
+    const pool = createPool({ ...makeOpts(1), onOverflow: "throw" });
+    pool.acquire();
+    expect(() => pool.acquire()).toThrow(PoolError);
+  });
+
+  it("O3. 'null': full pool → acquire returns null; alive/available unchanged", () => {
+    const pool = createPool({ ...makeOpts(1), onOverflow: "null" });
+    pool.acquire();
+    expect(pool.alive).toBe(1);
+    expect(pool.available).toBe(0);
+    const result = pool.acquire();
+    expect(result).toBeNull();
+    // state must not change
+    expect(pool.alive).toBe(1);
+    expect(pool.available).toBe(0);
+  });
+
+  it("O4. 'null' type-level: acquire() infers T | null; default pool infers T", () => {
+    const nullPool = createPool({ ...makeOpts(2), onOverflow: "null" });
+    const defaultPool = createPool(makeOpts(2));
+    // These assignments are the type test — tsc enforces them.
+    const x: Obj | null = nullPool.acquire();
+    const y: Obj = defaultPool.acquire();
+    expect(x).not.toBeNull(); // pool not yet full, returns real object
+    expect(y).toBeDefined();
+  });
+
+  it("O5. 'grow': full pool → create() called capacity more times; alive+available === 2×size", () => {
+    const opts = makeOpts(2);
+    const pool = createPool({ ...opts, onOverflow: "grow" });
+    opts.create.mockClear(); // clear the 2 initial calls
+    pool.acquire();
+    pool.acquire();
+    // pool now full — next acquire triggers grow
+    pool.acquire();
+    // grow pushes capacity (2) new objects
+    expect(opts.create).toHaveBeenCalledTimes(2);
+    // alive=3, available=1 → total=4 = 2×2
+    expect(pool.alive + pool.available).toBe(4);
+  });
+
+  it("O6. 'grow': grow after full → acquire returns real object; LIFO still holds", () => {
+    const pool = createPool({ ...makeOpts(1), onOverflow: "grow" });
+    pool.acquire(); // exhaust
+    const obj = pool.acquire(); // triggers grow, returns newly created obj
+    expect(obj).toBeDefined();
+    expect(typeof obj.value).toBe("number");
+    // release and re-acquire to verify LIFO
+    pool.release(obj);
+    expect(pool.acquire()).toBe(obj);
+  });
+
+  it("O7. 'grow': two consecutive grows (size→2×→4×) — counts correct (no off-by-one)", () => {
+    const pool = createPool({ ...makeOpts(2), onOverflow: "grow" });
+    // exhaust initial 2
+    pool.acquire();
+    pool.acquire();
+    // 1st grow: adds 2, capacity=4; acquire one of them
+    pool.acquire();
+    expect(pool.alive + pool.available).toBe(4);
+    // exhaust remaining 1 from first grow
+    pool.acquire();
+    // 2nd grow: adds 4, capacity=8; acquire one of them
+    pool.acquire();
+    expect(pool.alive + pool.available).toBe(8);
+  });
+
+  it("O8. function handler: full pool → handler receives pool; returned obj enters aliveSet", () => {
+    const handlerObj: Obj = { value: 99 };
+    const handler = vi.fn((_pool: Pool<Obj>) => handlerObj);
+    const pool = createPool({ ...makeOpts(1), onOverflow: handler });
+    pool.acquire(); // exhaust
+    const result = pool.acquire();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(handler).toHaveBeenCalledWith(pool);
+    expect(result).toBe(handlerObj);
+    // handlerObj is now alive
+    expect(pool.alive).toBe(2);
+  });
+
+  it("O9. function handler: recycle-oldest escape hatch — handler returns already-alive obj (aliasing)", () => {
+    // Acquire obj1 first; on overflow, handler returns obj1 (escape hatch).
+    // obj1 is now aliased — both the first caller and the second caller hold it.
+    const pool = createPool<Obj>({
+      size: 1,
+      create: () => ({ value: 0 }),
+      reset: (o) => {
+        o.value = 0;
+      },
+      onOverflow: (p) => {
+        // grab from aliveSet via drain trick: drain returns items to available
+        // but that would release them. Instead return the pool ref so we can
+        // acquire the first alive object directly — we have to be creative here.
+        // We use p.alive and p.available as a signal; the simplest escape hatch:
+        // just drain and re-acquire (which modifies pool state — demonstrating
+        // the danger).
+        p.drain(); // resets obj1 back to available
+        const recycled = p.acquire(); // takes obj1 out again
+        return recycled;
+      },
+    });
+    const obj1 = pool.acquire(); // slot taken
+    obj1.value = 42;
+    // overflow triggers: drain → acquire obj1
+    const obj2 = pool.acquire();
+    // obj2 IS obj1 (handler recycled it)
+    expect(obj2).toBe(obj1);
+    // alive should be 1 (drain removed, acquire re-added)
+    expect(pool.alive).toBe(1);
+  });
+
+  it("O10. 'null' + subsequent release: null does not consume a slot; existing obj releases fine", () => {
+    const pool = createPool({ ...makeOpts(2), onOverflow: "null" });
+    const obj = pool.acquire();
+    pool.acquire(); // exhaust 2nd slot
+    const nullResult = pool.acquire(); // null, no slot taken
+    expect(nullResult).toBeNull();
+    // release the first obj — should work normally
+    expect(() => pool.release(obj)).not.toThrow();
+    expect(pool.available).toBe(1);
+  });
+
+  it("O11. dispose is checked before overflow — all strategies still throw PoolDisposedError after dispose", () => {
+    for (const strategy of ["throw", "null", "grow"] as const) {
+      const pool = createPool({ ...makeOpts(1), onOverflow: strategy });
+      pool.dispose();
+      expect(() => pool.acquire()).toThrow(PoolDisposedError);
+    }
+    // function handler strategy
+    const poolFn = createPool({ ...makeOpts(1), onOverflow: () => ({ value: 0 }) });
+    poolFn.dispose();
+    expect(() => poolFn.acquire()).toThrow(PoolDisposedError);
+  });
+});
