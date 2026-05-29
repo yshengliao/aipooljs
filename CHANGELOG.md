@@ -6,6 +6,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-29
+
+Dependency-hygiene + stability-freeze release, part of the ai\*js family-wide v0.4.0
+dependency-reduction cycle. **No runtime API addition.** Production bundles are
+byte-identical to 0.3.1 (`dist/index.js` 869 B gzip); the public surface is unchanged.
+
+### Changed
+
+- **Removed unused `tsx` devDependency.** `depcheck` confirmed `tsx` was not referenced
+  by any script, config, or source file. `pnpm-lock.yaml` is pruned accordingly — smaller
+  install graph and reduced CI supply-chain surface. Runtime/peer dependencies remain zero.
+
+### Docs
+
+- `STABILITY.md`: the 0.3.x stable surface (`createPool` / `PoolOptions` / `Pool` /
+  `NullPool` / `OverflowHandler` / `PoolError` / `PoolDisposedError` / `onOverflow` /
+  `borrow` + its 6 invariants) is now declared **1.0-track frozen** — these signatures
+  will not change before 1.0 and are guaranteed stable across the 1.x line once 1.0 ships.
+  The polymorphic-chunked-pool remains a draft (target v0.6+).
+
+### Notes
+
+- `pnpm audit` clean — no transitive advisories.
+- Backward-compatible minor: no exports removed, no signatures changed, no error
+  `name`/`code` changes, no default-behaviour changes.
+
 ## [0.3.1] - 2026-05-29
 
 ### Fixed

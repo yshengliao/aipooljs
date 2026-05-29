@@ -2,6 +2,11 @@
 
 ## Stable (since 0.3.0)
 
+> **1.0-track frozen (since 0.4.0).** Every entry below is frozen for the 1.x line:
+> no signature, return-type, error `name`/`code`, or default-behaviour change will land
+> before 1.0, and these APIs are guaranteed stable across 1.x once 1.0 ships. Additive
+> growth (new optional options / new exports) remains possible.
+
 - `createPool` / `PoolOptions` / `Pool` / `PoolError` / `PoolDisposedError`
 - `OverflowHandler<T>` / `NullPool<T>`
 - `acquire` / `release` / `drain` / `dispose` / `alive` / `available` / `disposed`
