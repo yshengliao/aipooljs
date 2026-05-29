@@ -10,7 +10,7 @@
 
 Part of the [ai\*js micro-runtime ecosystem](https://github.com/yshengliao) — see also [aifsmjs](https://github.com/yshengliao/aifsmjs) (FSM), [aiecsjs](https://github.com/yshengliao/aiecsjs) (ECS), [aibridgejs](https://github.com/yshengliao/aibridgejs) (cross-context RPC), [aieventjs](https://github.com/yshengliao/aieventjs) (event emitter), [aiquadtreejs](https://github.com/yshengliao/aiquadtreejs) (spatial partitioning), and [aiaudiojs](https://github.com/yshengliao/aiaudiojs) (Web Audio shell).
 
-> **Status: 0.1.0 published.** API surface is stable; full implementation shipped.
+> **Status: 0.3.0 published.** API surface is stable; full implementation shipped.
 
 ---
 
@@ -69,7 +69,7 @@ function reclaim(s: PIXI.Sprite) {
 }
 ```
 
-The contract is deliberately narrow. There's no async constructor, no auto-grow, no priority — those belong in user-land when they're actually needed.
+The contract is deliberately narrow. There's no async constructor and no priority queue; auto-grow is opt-in via `onOverflow: 'grow'`, never the default — the rest belongs in user-land when actually needed.
 
 ---
 
@@ -77,7 +77,7 @@ The contract is deliberately narrow. There's no async constructor, no auto-grow,
 
 | Will do (v1)                                              | Won't do                                              |
 | --------------------------------------------------------- | ----------------------------------------------------- |
-| Fixed-size pre-allocation                                 | Auto-grow (overflow throws `PoolError`)               |
+| Fixed-size pre-allocation; opt-in auto-grow via `onOverflow: 'grow'` | Auto-grow by default (overflow throws `PoolError`; opt-in via `onOverflow`) |
 | O(1) `acquire()` / `release()`; `drain()` is O(alive)     | Async object construction                             |
 | Reset hook (V8-friendly: assign, never `delete`)          | Silent double-release (throws in all modes)           |
 | `alive` / `available` / `disposed` read-only counters     | Connection pool / thread pool / DB pool               |
@@ -89,10 +89,13 @@ The contract is deliberately narrow. There's no async constructor, no auto-grow,
 ## API sketch
 
 ```typescript
+type OverflowHandler<T> = 'throw' | 'null' | 'grow' | ((pool: Pool<T>) => T);
+
 interface PoolOptions<T> {
   create: () => T;
   reset: (obj: T) => void;
   size: number;
+  onOverflow?: OverflowHandler<T>; // default: 'throw'
 }
 
 interface Pool<T> {
@@ -100,14 +103,20 @@ interface Pool<T> {
   release(obj: T): void;
   drain(): void;
   dispose(): void;
+  borrow<R>(fn: (obj: T) => R): R;
+  borrow<R>(fn: (obj: T, signal?: AbortSignal) => Promise<R>, opts?: { signal?: AbortSignal }): Promise<R>;
   readonly alive: number;
   readonly available: number;
   readonly disposed: boolean;
 }
 
+// 'null' mode: acquire() returns T | null instead of throwing on overflow
+interface NullPool<T> extends Omit<Pool<T>, 'acquire'> { acquire(): T | null; }
+
 class PoolError extends Error { /* overflow / double-release / foreign object */ }
 class PoolDisposedError extends Error { /* any call after dispose */ }
 
+function createPool<T>(opts: PoolOptions<T> & { onOverflow: 'null' }): NullPool<T>;
 function createPool<T>(opts: PoolOptions<T>): Pool<T>;
 ```
 
@@ -120,8 +129,8 @@ Full JSDoc lives in [`src/index.ts`](src/index.ts).
 | Version    | Adds                                                                                                                                |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | **0.1.0**  | `createPool`, `acquire` / `release` / `drain` / `dispose`, double-release detection, error classes, ≥95% coverage, ≤700 B gzip (strict-TS overhead lands at ~557 B). |
-| **0.2.0**  | Opt-in `borrow(fn, signal?)` helper — `acquire` then `release` automatically in a `try/finally`, with `AbortSignal` cancellation.   |
-| **0.3+**   | TBD — driven by real PixiJS integration feedback (e.g. typed handle wrappers, batch acquire, generation counters for stale checks). |
+| **0.3.0**  | `onOverflow` option (`'throw'` / `'null'` / `'grow'` / function handler); `borrow(fn, opts?)` helper with `AbortSignal` support; `STABILITY.md`; budget raised to 850 B. |
+| **0.6+**   | TBD — driven by real integration feedback (e.g. polymorphic chunked pool, batch acquire, generation counters for stale checks). |
 
 ---
 

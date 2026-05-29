@@ -1,6 +1,6 @@
 {
   "name": "aipooljs",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "description": "Tiny, strict object pool for high-frequency acquire/release patterns — PixiJS sprite pools, bullet pools, particle pools, DOM node recyclers, worker job slots. Fixed-size, fail-fast on overflow, double-release detection.",
   "keywords": [
     "object-pool",
@@ -48,7 +48,7 @@
     "test:watch": "vitest",
     "lint": "biome check src test",
     "format": "biome format --write src test",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit",
     "verify:exports": "node scripts/verify-exports.mjs",
     "check:size": "node scripts/check-size.mjs",
     "build:llms": "node scripts/build-llms-full.mjs",

@@ -6,6 +6,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-29
+
+### Added
+
+- `onOverflow` option (`'throw' | 'null' | 'grow' | (pool) => T`) on `PoolOptions<T>`. Default
+  remains `'throw'` — fully backward-compatible.
+- `NullPool<T>` interface and overloaded `createPool` factory: `onOverflow: 'null'` narrows
+  `acquire()` return type to `T | null` at compile time.
+- `OverflowHandler<T>` type exported.
+- `borrow(fn, opts?)` helper on `Pool<T>`: auto-releases via `try/finally`, with opt-in
+  `AbortSignal` cancellation. Sync and async `fn` both supported. Six stability invariants
+  documented in `STABILITY.md`.
+- `STABILITY.md` — stable API surface + borrow invariants + polymorphic-chunked-pool draft
+  placeholder.
+
+### Changed
+
+- Size budget `dist/index.js`: 700 B → 850 B (accounts for `onOverflow` dispatch + `borrow`
+  async/abort machinery).
+
+### Docs
+
+- README roadmap: `borrow` + `onOverflow` moved from the never-shipped 0.2.0 row to **0.3.0**.
+- README status line: "0.1.0 published" → "0.3.0 published".
+- README Capabilities table: "Auto-grow (overflow throws PoolError)" updated to reflect opt-in
+  `onOverflow` (`'grow'` available; default still throws).
+- `STABILITY.md` added to `llms-full.txt` via `scripts/build-llms-full.mjs`.
+
 ## [0.1.1] - 2026-05-28
 
 ### Changed (CI)

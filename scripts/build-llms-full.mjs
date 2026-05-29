@@ -19,6 +19,7 @@ const sections = [
   { path: "README.md", title: null },
   { path: "CHANGELOG.md", title: null },
   { path: "CONTRIBUTING.md", title: null },
+  { path: "STABILITY.md", title: null },
 ];
 
 const header = `# aipooljs — full LLM context

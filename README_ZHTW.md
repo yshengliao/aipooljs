@@ -10,7 +10,7 @@
 
 隸屬 [ai\*js micro-runtime 生態系](https://github.com/yshengliao) ─ 另見 [aifsmjs](https://github.com/yshengliao/aifsmjs)（FSM）、[aiecsjs](https://github.com/yshengliao/aiecsjs)（ECS）、[aibridgejs](https://github.com/yshengliao/aibridgejs)（cross-context RPC）、[aieventjs](https://github.com/yshengliao/aieventjs)（event emitter）、[aiquadtreejs](https://github.com/yshengliao/aiquadtreejs)（空間分割）、[aiaudiojs](https://github.com/yshengliao/aiaudiojs)（Web Audio 薄殼）。
 
-> **狀態：0.0.1 scaffold。** 下方 API surface 已凍結；實作在 0.1.0 落地。目前 `createPool` 被呼叫會直接 `throw "not implemented"`。
+> **狀態：0.3.0 published。** API surface 穩定；完整實作已上線。
 
 ---
 
@@ -69,7 +69,7 @@ function reclaim(s: PIXI.Sprite) {
 }
 ```
 
-契約刻意收窄。沒有 async constructor、沒有 auto-grow、沒有 priority ── 這些東西真正有需要時，留給 user-land 寫。
+契約刻意收窄。沒有 async constructor、沒有 priority；auto-grow 是 opt-in（`onOverflow: 'grow'`）而非預設 ── 其餘真正有需要時，留給 user-land 寫。
 
 ---
 
@@ -77,7 +77,7 @@ function reclaim(s: PIXI.Sprite) {
 
 | 會做（v1）                                                  | 不會做                                                |
 | ---------------------------------------------------------- | ----------------------------------------------------- |
-| 固定大小預配置                                              | Auto-grow（溢位直接拋 `PoolError`）                   |
+| 固定大小預配置；可選 auto-grow（`onOverflow: 'grow'`）       | 預設溢位即拋（`PoolError`）；可透過 `onOverflow` opt-in auto-grow |
 | O(1) `acquire()` / `release()`；`drain()` 為 O(alive)      | Async object construction                             |
 | Reset hook（V8 友善：賦值、絕不 `delete`）                  | 靜默重複 release（任何模式下都拋）                    |
 | `alive` / `available` / `disposed` 唯讀 counter            | 連線池 / Thread pool / DB pool                        |
@@ -89,10 +89,13 @@ function reclaim(s: PIXI.Sprite) {
 ## API 草稿
 
 ```typescript
+type OverflowHandler<T> = 'throw' | 'null' | 'grow' | ((pool: Pool<T>) => T);
+
 interface PoolOptions<T> {
   create: () => T;
   reset: (obj: T) => void;
   size: number;
+  onOverflow?: OverflowHandler<T>; // 預設：'throw'
 }
 
 interface Pool<T> {
@@ -100,14 +103,20 @@ interface Pool<T> {
   release(obj: T): void;
   drain(): void;
   dispose(): void;
+  borrow<R>(fn: (obj: T) => R): R;
+  borrow<R>(fn: (obj: T, signal?: AbortSignal) => Promise<R>, opts?: { signal?: AbortSignal }): Promise<R>;
   readonly alive: number;
   readonly available: number;
   readonly disposed: boolean;
 }
 
+// 'null' 模式：溢位時 acquire() 回 T | null，不拋錯
+interface NullPool<T> extends Omit<Pool<T>, 'acquire'> { acquire(): T | null; }
+
 class PoolError extends Error { /* 溢位 / 重複 release / 非自家物件 */ }
 class PoolDisposedError extends Error { /* dispose 後任何呼叫 */ }
 
+function createPool<T>(opts: PoolOptions<T> & { onOverflow: 'null' }): NullPool<T>;
 function createPool<T>(opts: PoolOptions<T>): Pool<T>;
 ```
 
@@ -120,8 +129,8 @@ function createPool<T>(opts: PoolOptions<T>): Pool<T>;
 | 版本       | 加入內容                                                                                                                                |
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **0.1.0**  | `createPool`、`acquire` / `release` / `drain` / `dispose`、重複 release 偵測、error classes、≥95% coverage、≤700 B gzip（strict-TS 額外負擔實測落在 ~557 B）。 |
-| **0.2.0**  | opt-in `borrow(fn, signal?)` helper ── `try/finally` 內自動 acquire/release，配 `AbortSignal` 取消。                                     |
-| **0.3+**   | TBD ── 由真實 PixiJS 整合回饋驅動（typed handle wrapper、batch acquire、generation counter 等）。                                        |
+| **0.3.0**  | `onOverflow` 選項（`'throw'` / `'null'` / `'grow'` / function handler）；`borrow(fn, opts?)` helper（含 `AbortSignal` 支援）；`STABILITY.md`；size budget 提升至 850 B。 |
+| **0.6+**   | TBD ── 由真實整合回饋驅動（polymorphic chunked pool、batch acquire、generation counter 等）。                                            |
 
 ---
 
